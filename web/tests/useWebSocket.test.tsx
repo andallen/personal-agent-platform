@@ -30,7 +30,9 @@ test("collects events delivered through onmessage", async () => {
   const { result } = renderHook(() => useWebSocket("/ws"));
   await act(async () => {
     await new Promise((r) => setTimeout(r, 1));
-    MockWS.instances[0].onmessage?.({
+    const instance = MockWS.instances[0];
+    if (!instance) throw new Error("No WebSocket instance");
+    instance.onmessage?.({
       data: JSON.stringify({ kind: "state", state: { cwd: "/x" } }),
     });
   });
