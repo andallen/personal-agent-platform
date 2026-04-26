@@ -4,16 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
-Role = Literal["user", "assistant"]
-EventKind = Literal[
-    "user_message",
-    "assistant_text",
-    "tool_use",
-    "tool_result",
-    "clear_marker",
-]
-
-
 @dataclass(slots=True)
 class UserMessage:
     text: str
