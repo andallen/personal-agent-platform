@@ -142,3 +142,68 @@ def test_locate_active_jsonl_picks_most_recent(tmp_path: Path):
 
 def test_locate_active_jsonl_returns_none_when_empty(tmp_path: Path):
     assert locate_active_jsonl(tmp_path) is None
+
+
+import asyncio
+import json as _json
+import pytest
+
+from cc_mobile.event_bus import EventBus
+from cc_mobile.jsonl_tailer import JSONLTailer
+
+
+@pytest.mark.asyncio
+async def test_tailer_emits_existing_lines_on_start(tmp_path):
+    f = tmp_path / "s.jsonl"
+    f.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "first"}})
+        + "\n"
+    )
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    ev = await asyncio.wait_for(sub.get(), timeout=1.0)
+    assert ev["kind"] == "chat_event"
+    assert ev["event"]["kind"] == "user_message"
+    assert ev["event"]["text"] == "first"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_streams_appended_lines(tmp_path):
+    f = tmp_path / "s.jsonl"
+    f.write_text("")
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    # Append after startup
+    with f.open("a") as fp:
+        fp.write(
+            _json.dumps({"type": "user", "message": {"role": "user", "content": "later"}})
+            + "\n"
+        )
+    ev = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev["event"]["text"] == "later"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_switches_to_newer_file(tmp_path):
+    a = tmp_path / "a.jsonl"
+    a.write_text("")
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    # New file appears later, mtime newer
+    await asyncio.sleep(0.1)
+    b = tmp_path / "b.jsonl"
+    b.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "in-b"}})
+        + "\n"
+    )
+    ev = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev["event"]["text"] == "in-b"
+    await tailer.stop()

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -120,3 +122,66 @@ def locate_active_jsonl(directory: Path) -> Path | None:
     if not files:
         return None
     return max(files, key=lambda p: p.stat().st_mtime)
+
+
+from .event_bus import EventBus  # noqa: E402 — placed after helpers to avoid circular
+
+
+class JSONLTailer:
+    def __init__(
+        self,
+        directory: Path,
+        bus: EventBus,
+        poll_interval: float = 0.25,
+    ) -> None:
+        self.directory = Path(directory)
+        self.bus = bus
+        self.poll_interval = poll_interval
+        self._task: asyncio.Task[None] | None = None
+        self._stop = asyncio.Event()
+        self._cur_path: Path | None = None
+        self._cur_offset: int = 0
+
+    async def start(self) -> None:
+        self._stop.clear()
+        self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        self._stop.set()
+        if self._task:
+            await self._task
+            self._task = None
+
+    async def _loop(self) -> None:
+        while not self._stop.is_set():
+            target = locate_active_jsonl(self.directory)
+            if target != self._cur_path:
+                self._cur_path = target
+                self._cur_offset = 0
+            if self._cur_path is not None and self._cur_path.exists():
+                await self._read_new()
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=self.poll_interval)
+            except asyncio.TimeoutError:
+                continue
+
+    async def _read_new(self) -> None:
+        assert self._cur_path is not None
+        try:
+            with self._cur_path.open("r", encoding="utf-8", errors="replace") as f:
+                f.seek(self._cur_offset)
+                while True:
+                    line = f.readline()
+                    if not line:
+                        self._cur_offset = f.tell()
+                        return
+                    if not line.endswith("\n"):
+                        # Partial line — wait for next poll to read it whole.
+                        return
+                    for event in parse_line(line):
+                        payload = {"kind": "chat_event", "event": asdict(event)}
+                        await self.bus.publish(payload)
+                    self._cur_offset = f.tell()
+        except FileNotFoundError:
+            self._cur_path = None
+            self._cur_offset = 0
