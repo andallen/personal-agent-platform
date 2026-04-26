@@ -1,4 +1,5 @@
 import pytest
+from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from cc_mobile.api import build_app
@@ -153,3 +154,14 @@ async def test_get_lists_and_options():
     assert sess[0]["id"] == "abc"
     assert "models" in opts and "efforts" in opts and "modes" in opts
     assert slash[0]["name"] == "/clear"
+
+
+def test_websocket_sends_initial_state_on_connect():
+    mgr = FullFakeMgr()
+    bus = EventBus()
+    app = build_app(manager=mgr, bus=bus, static_dir=None, options=FakeOptions())
+    client = TestClient(app)
+    with client.websocket_connect("/ws") as ws:
+        msg = ws.receive_json()
+    assert msg["kind"] == "state"
+    assert msg["state"]["cwd"] == "/Users/andrewallen"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 
@@ -95,6 +95,23 @@ def build_app(
     @app.get("/api/slash-commands")
     async def get_slash_commands():
         return options.get_slash_commands()
+
+    @app.websocket("/ws")
+    async def ws(websocket: WebSocket):
+        await websocket.accept()
+        sub = bus.subscribe()
+        try:
+            # Send a snapshot of current state on connect
+            await websocket.send_json(
+                {"kind": "state", "state": await manager.current_state()}
+            )
+            while True:
+                event = await sub.get()
+                await websocket.send_json(event)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            bus.unsubscribe(sub)
 
     if static_dir is not None and static_dir.is_dir():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
