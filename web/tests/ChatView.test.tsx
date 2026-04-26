@@ -1,18 +1,18 @@
 import { render, screen } from "@testing-library/react";
-import App from "../src/App";
+import ChatView from "../src/ChatView";
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     const map: Record<string, any> = {
       "/api/state": {
-        cwd: "/Users/test", mode: "default",
+        cwd: "/Users/andrewallen", mode: "default",
         model: "claude-opus-4-7", effort: "high", claude_alive: true,
       },
       "/api/options": {
         models: [{ id: "claude-opus-4-7", label: "Opus 4.7" }],
         efforts: ["low", "high"], modes: ["default", "plan", "bypass"],
       },
-      "/api/slash-commands": [],
+      "/api/slash-commands": [{ name: "/clear", description: "..." }],
       "/api/projects": [],
       "/api/sessions": [],
     };
@@ -28,7 +28,7 @@ beforeEach(() => {
   };
 });
 
-test("app renders", async () => {
-  render(<App />);
-  expect(await screen.findByText(/loading…/)).toBeInTheDocument();
+test("ChatView mounts and shows project pill text", async () => {
+  render(<ChatView />);
+  expect(await screen.findByText(/andrewallen/)).toBeInTheDocument();
 });
