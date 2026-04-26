@@ -1,0 +1,27 @@
+.backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 100; opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.backdrop.open { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; bottom: 0; left: 50%;
+  transform: translate(-50%, 100%);
+  width: 100%; max-width: 760px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  padding: 6px var(--pad-x) calc(20px + env(safe-area-inset-bottom));
+  z-index: 110;
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1);
+  max-height: 75dvh; overflow-y: auto;
+}
+.sheet.open { transform: translate(-50%, 0); }
+.handle {
+  width: 38px; height: 4px;
+  background: var(--border); border-radius: 2px;
+  margin: 8px auto 14px;
+}
