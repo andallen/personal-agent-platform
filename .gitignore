@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / web
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Playwright
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/playwright/.cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
