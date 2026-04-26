@@ -25,3 +25,4 @@ web/playwright/.cache/
 *.swp
 *~
 web/tsconfig.tsbuildinfo
+certs/

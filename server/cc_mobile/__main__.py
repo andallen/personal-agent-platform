@@ -52,7 +52,15 @@ def main() -> None:
         await pane_watcher.stop()
 
     port = int(os.environ.get("CC_MOBILE_PORT", "8767"))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    certs_dir = Path(__file__).resolve().parent.parent.parent / "certs"
+    cert = certs_dir / "server.crt"
+    key = certs_dir / "server.key"
+    ssl_kwargs = (
+        {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
+        if cert.exists() and key.exists()
+        else {}
+    )
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info", **ssl_kwargs)
 
 
 if __name__ == "__main__":
