@@ -163,6 +163,16 @@ class SessionManager:
         out.sort(key=lambda p: p["mtime"], reverse=True)
         return out
 
+    async def current_state(self) -> dict[str, Any]:
+        s = self.state.get()
+        return {
+            "cwd": s["last_cwd"],
+            "mode": s["last_mode"],
+            "model": s["last_model"],
+            "effort": s["last_effort"],
+            "claude_alive": self.tmux.is_claude_alive(),
+        }
+
     async def list_recent_sessions(self, cwd: str) -> list[dict[str, Any]]:
         encoded = self._encode_project_dir(cwd)
         d = self.projects_root / encoded
