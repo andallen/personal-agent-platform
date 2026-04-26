@@ -1,0 +1,61 @@
+╭─── Claude Code v2.1.119 ─────────────────────────────────────────────────────────────────────────────────────────╮
+│                                              │ Tips for getting started                                          │
+│              Welcome back User!              │ Run /init to create a CLAUDE.md file with instructions for Claude │
+│                                              │ ───────────────────────────────────────────────────────────────── │
+│                    ▐▛███▜▌                   │ Recent activity                                                   │
+│                   ▝▜█████▛▘                  │ No recent activity                                                │
+│                     ▘▘ ▝▝                    │                                                                   │
+│                                              │                                                                   │
+│   Sonnet 4.6 with high effort · Claude Max   │                                                                   │
+│                     /tmp                     │                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+❯ make a plan for adding a /tmp directory listing utility script                                                                                                                                               
+   
+● Skill(superpowers:writing-plans)                                                                                                                                                                             
+  ⎿  Successfully loaded skill                                                                                                                                                                               
+                                                                                                                                                                                                               
+● I'm using the writing-plans skill to create the implementation plan.
+                                                                                                                                                                                                               
+  Let me explore the current state of the environment first.                                                                                                                                                   
+                                     
+● Explore(Explore /tmp directory and environment)                                                                                                                                                              
+  ⎿  Done (21 tool uses · 25.5k tokens · 31s)                                                                                            
+  (ctrl+o to expand)                                                                                                                                                                                           
+                                                                                                                                         
+● Good — I have a clear picture of the environment. Before writing the plan, let me clarify a few things.                                                                                                      
+                                                                                                                                                                                                               
+✶ Creating… (1m 9s · ↓ 2.8k tokens)                                                                                                                                                                            
+  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work                                                                                                                     
+                                                                                                                                                                                                               
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯                                                                                                                                                                                                              
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5h: 66% (resets in 1h 33m) | 7d: 22% (resets in 74h 33m) | 24k tokens (12% context) | Sonnet 4.6                                                                                                             
+  ⏸ plan mode on (shift+tab to cycle)                                                                                                                                                                          
+                                                                                                                                                                                                               
+                                                                                                                                                                                                               
+                                                                                                                                                                                                               
+                                                                                                                                                                                                               
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
