@@ -11,7 +11,7 @@ export default defineConfig({
       "/ws": { target: "ws://localhost:8767", ws: true },
     },
   },
-  build: { outDir: "dist", target: "es2020", sourcemap: true },
+  build: { outDir: "dist", target: "es2022", sourcemap: true },
   test: {
     environment: "jsdom",
     globals: true,
