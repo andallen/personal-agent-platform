@@ -42,7 +42,14 @@ class TmuxController:
         args = ["new-session", "-d", "-s", self.session_name]
         if cwd:
             args += ["-c", cwd]
-        self._run(*args)
+        # Spawn the tmux server in its own systemd scope so it doesn't
+        # inherit whatever cgroup spawned us (e.g. cc-mobile.service).
+        # Otherwise restarting that service kills the tmux server and
+        # every attached client gets dropped with [server exited].
+        wrapped = [
+            "systemd-run", "--user", "--scope", "--collect", "--quiet",
+        ] + self._base() + args
+        subprocess.run(wrapped, capture_output=True, text=True, check=True)
 
     def send_text(self, text: str) -> None:
         # `-l` sends literal text without interpreting key names.
