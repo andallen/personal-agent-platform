@@ -1,0 +1,61 @@
+╭─── Claude Code v2.1.119 ─────────────────────────────────────────────────────────────────────────────────────────╮
+│                                              │ Tips for getting started                                          │
+│              Welcome back User!              │ Run /init to create a CLAUDE.md file with instructions for Claude │
+│                                              │ ───────────────────────────────────────────────────────────────── │
+│                    ▐▛███▜▌                   │ Recent activity                                                   │
+│                   ▝▜█████▛▘                  │ No recent activity                                                │
+│                     ▘▘ ▝▝                    │                                                                   │
+│                                              │                                                                   │
+│   Sonnet 4.6 with high effort · Claude Max   │                                                                   │
+│                     /tmp                     │                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+❯ list files in /tmp using bash                                                                                                                                                                                
+   
+  Listed 1 directory (ctrl+o to expand)                                                                                                                                                                        
+                                                                                                                                                                                                             
+● Here are the files and directories in /tmp.                                                                                                                                                                  
+                                                                                                                                                                                                             
+● Ran 2 stop hooks (ctrl+o to expand)                                                                                                                                                                          
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh: 1: afplay: not found                                                                                                                      
+                                                                                                                                                                                                               
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯                                                                                                                                                                                                              
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  5h: 63% (resets in 1h 44m) | 7d: 21% (resets in 74h 44m) | 20k tokens (10% context) | Sonnet 4.6       tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking  
+                                                                                                                                                                                                               
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

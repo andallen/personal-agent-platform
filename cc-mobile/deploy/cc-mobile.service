@@ -1,0 +1,16 @@
+[Unit]
+Description=cc-mobile (Claude Code phone UI over Tailscale)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/cc-mobile/server
+Environment=CC_MOBILE_PORT=8767
+ExecStart=%h/.local/bin/uv run --project %h/cc-mobile/server python -m cc_mobile
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
