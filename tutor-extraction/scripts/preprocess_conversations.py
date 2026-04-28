@@ -9,16 +9,16 @@ Each output file: {id, source, title, user_messages, metadata}
 
 Applies all programmatic filters:
 1. Drop 1-message conversations
-2. Drop stock research template conversations (ChatGPT)
-3. Drop image generation conversations (ChatGPT)
-4. Drop non-learning Claude Code sessions (91%)
-5. (Gemini parsing handled separately)
+2. Drop stock research template conversations
+3. Drop image generation conversations
+4. Drop too-short Claude Code sessions (0-1 user messages)
 """
 import json
 import hashlib
 import re
 import zipfile
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 EXPORTS_DIR = Path.home() / "ai-exports"
@@ -49,7 +49,14 @@ def is_stock_research(title):
 def is_image_generation(title):
     if not title:
         return False
-    return 'image' in title.lower() and ('generat' in title.lower() or 'request' in title.lower())
+    t = title.lower()
+    if 'image' in t and ('generat' in t or 'request' in t or 'creat' in t):
+        return True
+    if t.startswith('created gemini canvas'):
+        return True
+    if 'draw ' in t or 'make me a picture' in t or 'generate a photo' in t:
+        return True
+    return False
 
 
 def extract_chatgpt_user_messages(conv):
@@ -124,6 +131,79 @@ def is_cc_definitely_not_learning(messages):
     """Returns True only if we can PROVE this session has no learning.
     Only condition: 0-1 user messages (no arc possible)."""
     return len(messages) < 2
+
+
+GEMINI_CONVERSATION_GAP_SECONDS = 1800  # 30 minutes
+
+
+def parse_gemini_html(html_content):
+    """Parse Gemini Takeout HTML into a list of (user_text, timestamp) pairs.
+
+    Gemini exports a flat activity log — individual prompt/response pairs,
+    not grouped conversations. Each outer-cell div contains one exchange.
+    """
+    entries = html_content.split(
+        'outer-cell mdl-cell mdl-cell--12-col mdl-shadow--2dp'
+    )[1:]
+
+    parsed = []
+    for entry in entries:
+        m = re.search(
+            r'mdl-typography--body-1">(.*?)</div>', entry, re.DOTALL
+        )
+        if not m:
+            continue
+        raw = m.group(1)
+        text = re.sub(r'<[^>]+>', ' ', raw).strip()
+        text = re.sub(r'\s+', ' ', text)
+
+        parts = re.split(
+            r'(\w+ \d{1,2}, \d{4}, \d{1,2}:\d{2}:\d{2}\s*[AP]M)', text
+        )
+        user_prompt = parts[0].strip() if parts else ''
+        date_str = parts[1].strip() if len(parts) > 1 else ''
+
+        if user_prompt.startswith('Prompted '):
+            user_prompt = user_prompt[len('Prompted '):]
+        elif user_prompt.startswith('Created Gemini Canvas'):
+            pass  # keep as-is for filter to catch
+
+        ts = None
+        if date_str:
+            try:
+                ts = datetime.strptime(date_str, '%b %d, %Y, %I:%M:%S %p')
+            except ValueError:
+                pass
+
+        if user_prompt and ts:
+            parsed.append({'text': user_prompt, 'timestamp': ts})
+
+    parsed.sort(key=lambda x: x['timestamp'])
+    return parsed
+
+
+def reconstruct_gemini_conversations(entries, gap_seconds=GEMINI_CONVERSATION_GAP_SECONDS):
+    """Group flat Gemini entries into conversations by timestamp proximity."""
+    if not entries:
+        return []
+
+    conversations = [[entries[0]]]
+    for entry in entries[1:]:
+        gap = (entry['timestamp'] - conversations[-1][-1]['timestamp']).total_seconds()
+        if gap > gap_seconds:
+            conversations.append([entry])
+        else:
+            conversations[-1].append(entry)
+
+    return conversations
+
+
+def gemini_conversation_title(messages):
+    """Generate a title from the first user message."""
+    first = messages[0] if messages else ''
+    if len(first) <= 60:
+        return first
+    return first[:57] + '...'
 
 
 def write_conversation(conv_id, source, title, messages, output_dir):
@@ -226,6 +306,43 @@ for session_path in cc_sessions:
     conv_id = make_id('claude_code', session_path.stem, idx['cc'])
     write_conversation(conv_id, 'claude_code', title, messages, OUTPUT_DIR)
     stats['cc_kept'] += 1
+
+# Gemini (Google Takeout)
+print("Processing Gemini...")
+with zipfile.ZipFile(EXPORTS_DIR / 'google_takeout_april.zip') as z:
+    with z.open('Takeout/My Activity/Gemini Apps/MyActivity.html') as f:
+        html_content = f.read().decode('utf-8', errors='replace')
+
+gemini_entries = parse_gemini_html(html_content)
+stats['gemini_entries_total'] = len(gemini_entries)
+
+gemini_convos = reconstruct_gemini_conversations(gemini_entries)
+stats['gemini_reconstructed'] = len(gemini_convos)
+
+for conv_messages in gemini_convos:
+    stats['gemini_total'] += 1
+    messages = [e['text'] for e in conv_messages]
+    title = gemini_conversation_title(messages)
+
+    if is_stock_research(title):
+        stats['filtered_stock'] += 1
+        continue
+    if is_image_generation(title):
+        stats['filtered_image'] += 1
+        continue
+
+    if any(is_stock_research(m) for m in messages):
+        stats['filtered_stock'] += 1
+        continue
+
+    if len(messages) <= 1:
+        stats['filtered_single_msg'] += 1
+        continue
+
+    idx['gemini'] += 1
+    conv_id = make_id('gemini', title, idx['gemini'])
+    write_conversation(conv_id, 'gemini', title, messages, OUTPUT_DIR)
+    stats['gemini_kept'] += 1
 
 # ── Summary ─────────────────────────────────────────────────────────
 total_kept = sum(v for k, v in stats.items() if k.endswith('_kept'))
