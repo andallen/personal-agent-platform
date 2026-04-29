@@ -11,6 +11,7 @@ from .types import (
     AssistantText,
     ChatEvent,
     ClearMarker,
+    CompactSummary,
     ToolResult,
     ToolUse,
     UserMessage,
@@ -51,6 +52,12 @@ def parse_line(line: str) -> list[ChatEvent]:
 
 
 def _parse_user(obj: dict[str, Any]) -> list[ChatEvent]:
+    # CC writes a synthetic user-role entry with isCompactSummary=True after
+    # /compact finishes — the content is a giant context dump for the next
+    # turn, not something a human typed. Surface it as a marker event and
+    # drop the body so it doesn't render as a wall-of-text user bubble.
+    if obj.get("isCompactSummary"):
+        return [CompactSummary()]
     msg = obj.get("message") or {}
     content = msg.get("content")
     if isinstance(content, str):
@@ -141,6 +148,27 @@ class JSONLTailer:
         self._stop = asyncio.Event()
         self._cur_path: Path | None = None
         self._cur_offset: int = 0
+        # Pin set by rotate_to(): when not None, _loop tracks this path
+        # instead of auto-discovering by max mtime. Lets resume() jump the
+        # tailer to the resumed jsonl without waiting for it to win the
+        # mtime race.
+        self._pinned_path: Path | None = None
+        # Sentinel meaning "rotate_to(None) was called and we should pick up
+        # a fresh auto target on the next iteration." Distinct from "pin was
+        # never set" so we can emit a ClearMarker on the unpin transition.
+        self._pin_dirty: bool = False
+
+    def rotate_to(self, path: Path | None) -> None:
+        """Force the tailer to track `path` (None resumes auto-discovery).
+
+        On the next poll iteration the tailer will switch to `path`, emit a
+        ClearMarker, and start reading from offset 0. The pin sticks across
+        iterations even if another file has a higher mtime — which is the
+        whole point: a freshly-resumed jsonl carries an old mtime until
+        Claude actually writes to it.
+        """
+        self._pinned_path = path
+        self._pin_dirty = True
 
     async def start(self) -> None:
         self._stop.clear()
@@ -154,10 +182,33 @@ class JSONLTailer:
 
     async def _loop(self) -> None:
         while not self._stop.is_set():
-            target = locate_active_jsonl(self.directory)
+            if self._pinned_path is not None:
+                target = self._pinned_path
+            else:
+                target = locate_active_jsonl(self.directory)
             if target != self._cur_path:
+                # CC never writes a {"type":"clear"} line — /clear, project
+                # switch, and resume all just rotate to a fresh jsonl. The
+                # rotation itself is the only signal we get, so emit a
+                # ClearMarker on every path change *after* the first detection.
+                # Also emit when a rotate_to() was just called, even if the
+                # path happens to be the same we were already on.
+                if self._cur_path is not None and target is not None:
+                    await self.bus.publish(
+                        {"kind": "chat_event", "event": asdict(ClearMarker())}
+                    )
                 self._cur_path = target
                 self._cur_offset = 0
+            elif self._pin_dirty:
+                # Unpin (rotate_to(None)) where auto-discovery happens to
+                # land on the same path as the prior pin: still surface the
+                # transition so the UI knows context changed.
+                if self._cur_path is not None:
+                    await self.bus.publish(
+                        {"kind": "chat_event", "event": asdict(ClearMarker())}
+                    )
+                self._cur_offset = 0
+            self._pin_dirty = False
             if self._cur_path is not None and self._cur_path.exists():
                 await self._read_new()
             try:

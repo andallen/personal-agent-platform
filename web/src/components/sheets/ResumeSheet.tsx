@@ -9,7 +9,7 @@ export function ResumeSheet(props: {
   onClose: () => void;
 }) {
   return (
-    <BottomSheet open={props.open} onClose={props.onClose}>
+    <BottomSheet open={props.open} onClose={props.onClose} noScroll>
       <h3 className="sheetH3">resume session</h3>
       {props.sessions.map((s) => (
         <button
@@ -21,10 +21,10 @@ export function ResumeSheet(props: {
           }}
         >
           <span>
-            <span className="oName">{s.id.slice(0, 12)}</span>
+            <span className="oName">{s.title ?? s.id.slice(0, 12)}</span>
             <br />
             <span className="oSub">
-              {new Date(s.mtime * 1000).toISOString().slice(0, 19)}
+              {new Date(s.mtime * 1000).toLocaleString()}
             </span>
           </span>
         </button>

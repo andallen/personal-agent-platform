@@ -9,11 +9,13 @@ from pathlib import Path
 class TmuxController:
     def __init__(
         self,
-        session_name: str = "claude-mobile",
+        session_name: str = "claude",
         socket_path: str | None = None,
+        claude_bin: str = "claude",
     ) -> None:
         self.session_name = session_name
         self.socket_path = socket_path
+        self.claude_bin = claude_bin
 
     def _base(self) -> list[str]:
         cmd = ["tmux"]
@@ -97,18 +99,24 @@ class TmuxController:
         cwd: str,
         mode: str = "default",
         resume_id: str | None = None,
-        bin_path: str = "claude",
+        bin_path: str | None = None,
     ) -> None:
-        """Send the launch keystroke into the existing session's pane."""
-        # Build the argv list the user wants to run.
-        argv = [bin_path]
+        """Send the launch keystroke into the existing session's pane.
+
+        We deliberately don't `exec` — the bash that started this pane
+        must outlive claude. With exec, when claude exits (kill_claude or
+        crash), the pane has nothing left to run and tmux closes the
+        pane/window/session. SessionManager.resume() and friends rely on
+        kill→restart inside the same pane, so we keep the shell as the
+        "anchor" process that survives every claude lifecycle.
+        """
+        argv = [bin_path or self.claude_bin]
         if mode == "bypass":
             argv.append("--dangerously-skip-permissions")
         if resume_id:
             argv += ["--resume", resume_id]
         cmd = " ".join(shlex.quote(a) for a in argv)
-        # cd then exec replace shell so it's a clean process tree.
-        full = f"cd {shlex.quote(cwd)} && exec {cmd}"
+        full = f"cd {shlex.quote(cwd)} && {cmd}"
         self.send_text(full)
         self.send_keys("Enter")
 
@@ -116,3 +124,16 @@ class TmuxController:
         """Send Ctrl+C twice (interrupt then quit) — claim the shell, no exec swap kept."""
         self.send_keys("C-c")
         self.send_keys("C-c")
+
+    def force_respawn_pane(self, cwd: str | None = None) -> None:
+        """Nuclear fallback when C-c, C-c didn't kill claude.
+
+        `respawn-pane -k` kills whatever process is running in the pane
+        and starts a fresh shell. Used by SessionManager only after the
+        polite-kill timeout expires; otherwise we rely on Ctrl+C so the
+        normal claude shutdown path runs.
+        """
+        args = ["respawn-pane", "-k", "-t", self.session_name]
+        if cwd:
+            args += ["-c", cwd]
+        self._run(*args, check=False)

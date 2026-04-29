@@ -1,19 +1,20 @@
 :root {
-  --bg: #1a1612;
-  --bg-soft: #14110d;
-  --surface: #25201a;
-  --surface-2: #2c2620;
-  --border: #3a342c;
-  --border-soft: #2a251f;
-  --text: #ebe4d4;
-  --text-muted: #9c9386;
-  --text-dim: #6a6055;
+  --bg: #18181a;
+  --bg-soft: #131314;
+  --surface: #232325;
+  --surface-2: #2a2a2c;
+  --border: #38383a;
+  --border-soft: #28282a;
+  --text: #e6e5e3;
+  --text-muted: #969592;
+  --text-dim: #66645f;
   --accent: #d97757;
   --accent-soft: rgba(217, 119, 87, 0.14);
   --accent-dim: #a85838;
   --warn: #e3b577;
   --warn-soft: rgba(227, 181, 119, 0.08);
-  --user-bg: #2a221a;
+  --cmd-blue: #8aabc7;
+  --user-bg: #27272a;
   --r-pill: 999px;
   --r-card: 12px;
   --r-input: 18px;
@@ -24,7 +25,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body, #root { height: 100%; }
+html, body, #root { height: 100%; overflow-x: hidden; }
 ::selection { background: var(--accent-soft); color: var(--accent); }
 body {
   background: var(--bg);

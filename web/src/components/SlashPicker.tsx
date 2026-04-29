@@ -9,12 +9,12 @@ export function SlashPicker(props: {
 }) {
   const q = props.query.replace(/^\//, "").toLowerCase();
   const filtered = props.commands.filter((c) =>
-    c.name.slice(1).toLowerCase().startsWith(q),
+    c.name.slice(1).toLowerCase().includes(q),
   );
   return (
     <div className={`picker ${css.picker} ${props.open ? "open " + css.open : ""}`}>
       <div className={css.head}>
-        <span className={css.title}>slash commands</span>
+        <span className={css.title}>commands & skills</span>
         <span className={css.count}>{filtered.length} matches</span>
       </div>
       {filtered.length === 0 ? (
@@ -27,7 +27,10 @@ export function SlashPicker(props: {
             className={css.cmd}
             onClick={() => props.onPick(c.name)}
           >
-            <div className={css.name}>{c.name}</div>
+            <div className={css.row}>
+              <span className={css.name}>{c.name}</span>
+              {c.kind === "skill" && <span className={css.tag}>skill</span>}
+            </div>
             <div className={css.desc}>{c.description}</div>
           </button>
         ))
