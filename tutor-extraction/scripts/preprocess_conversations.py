@@ -59,29 +59,35 @@ def is_image_generation(title):
     return False
 
 
-def extract_chatgpt_user_messages(conv):
+def extract_chatgpt_messages(conv):
     mapping = conv.get('mapping', {})
-    messages = []
+    nodes = []
     for node in mapping.values():
         msg = node.get('message')
         if msg is None:
             continue
-        author = msg.get('author')
-        if author is None:
-            continue
-        if author.get('role') != 'user':
+        author = msg.get('author', {})
+        role = author.get('role')
+        if role not in ('user', 'assistant'):
             continue
         parts = msg.get('content', {}).get('parts', [])
         text = ' '.join(str(p) for p in parts if isinstance(p, str))
         if text.strip():
-            messages.append(text.strip())
-    return messages
+            ts = msg.get('create_time', 0) or 0
+            nodes.append({'role': role, 'text': text.strip(), 'ts': ts})
+    nodes.sort(key=lambda x: x['ts'])
+    return [{'role': n['role'], 'text': n['text']} for n in nodes]
 
 
-def extract_claude_user_messages(conv):
+def extract_claude_messages(conv):
     messages = []
     for m in conv.get('chat_messages', []):
-        if m.get('sender') != 'human':
+        sender = m.get('sender')
+        if sender == 'human':
+            role = 'user'
+        elif sender == 'assistant':
+            role = 'assistant'
+        else:
             continue
         text = ''
         if isinstance(m.get('text'), str):
@@ -92,11 +98,11 @@ def extract_claude_user_messages(conv):
         elif isinstance(m.get('content'), str):
             text = m['content']
         if text.strip():
-            messages.append(text.strip())
+            messages.append({'role': role, 'text': text.strip()})
     return messages
 
 
-def extract_cc_user_messages(jsonl_path):
+def extract_cc_messages(jsonl_path):
     messages = []
     try:
         with open(jsonl_path) as f:
@@ -105,7 +111,10 @@ def extract_cc_user_messages(jsonl_path):
                     entry = json.loads(line.strip())
                 except json.JSONDecodeError:
                     continue
-                if entry.get('type') != 'user' or entry.get('isMeta', False):
+                entry_type = entry.get('type')
+                if entry_type not in ('user', 'assistant'):
+                    continue
+                if entry.get('isMeta', False):
                     continue
                 content = entry.get('message', {}).get('content', '')
                 if isinstance(content, str):
@@ -115,13 +124,15 @@ def extract_cc_user_messages(jsonl_path):
                                    if isinstance(p, dict) and p.get('type') == 'text')
                 else:
                     continue
-                if text.startswith('<command-name>') or text.startswith('/'):
-                    continue
-                if text.startswith('<local-command-stdout>'):
-                    continue
+                if entry_type == 'user':
+                    if text.startswith('<command-name>') or text.startswith('/'):
+                        continue
+                    if text.startswith('<local-command-stdout>'):
+                        continue
                 text = text.strip()
                 if text:
-                    messages.append(text)
+                    role = 'user' if entry_type == 'user' else 'assistant'
+                    messages.append({'role': role, 'text': text})
     except Exception:
         return []
     return messages
@@ -130,7 +141,8 @@ def extract_cc_user_messages(jsonl_path):
 def is_cc_definitely_not_learning(messages):
     """Returns True only if we can PROVE this session has no learning.
     Only condition: 0-1 user messages (no arc possible)."""
-    return len(messages) < 2
+    user_count = sum(1 for m in messages if m['role'] == 'user')
+    return user_count < 2
 
 
 GEMINI_CONVERSATION_GAP_SECONDS = 1800  # 30 minutes
@@ -212,10 +224,11 @@ def write_conversation(conv_id, source, title, messages, output_dir):
         'id': conv_id,
         'source': source,
         'title': title,
-        'user_messages': messages,
+        'messages': messages,
         'metadata': {
             'num_messages': len(messages),
-            'total_chars': sum(len(m) for m in messages),
+            'user_messages': sum(1 for m in messages if m['role'] == 'user'),
+            'total_chars': sum(len(m['text']) for m in messages),
         }
     }
     path = output_dir / f"{conv_id}.json"
@@ -248,8 +261,9 @@ with zipfile.ZipFile(EXPORTS_DIR / 'chatgpt_feb.zip') as z:
                 stats['filtered_image'] += 1
                 continue
             
-            messages = extract_chatgpt_user_messages(c)
-            if len(messages) <= 1:
+            messages = extract_chatgpt_messages(c)
+            user_count = sum(1 for m in messages if m['role'] == 'user')
+            if user_count <= 1:
                 stats['filtered_single_msg'] += 1
                 continue
             
@@ -266,8 +280,9 @@ for source_name in ['claude_acc1_feb', 'claude_acc2_feb']:
     for c in convos:
         stats[f'{source_name}_total'] += 1
         title = c.get('name') or 'untitled'
-        messages = extract_claude_user_messages(c)
-        if len(messages) <= 1:
+        messages = extract_claude_messages(c)
+        user_count = sum(1 for m in messages if m['role'] == 'user')
+        if user_count <= 1:
             stats['filtered_single_msg'] += 1
             continue
         idx[source_name] += 1
@@ -283,8 +298,9 @@ with zipfile.ZipFile(EXPORTS_DIR / 'claude_april.zip') as z:
     for c in convos:
         stats['claude_april_total'] += 1
         title = c.get('name') or 'untitled'
-        messages = extract_claude_user_messages(c)
-        if len(messages) <= 1:
+        messages = extract_claude_messages(c)
+        user_count = sum(1 for m in messages if m['role'] == 'user')
+        if user_count <= 1:
             stats['filtered_single_msg'] += 1
             continue
         idx['claude_april'] += 1
@@ -297,7 +313,7 @@ print("Processing Claude Code...")
 cc_sessions = list((EXPORTS_DIR / 'claude_code_april').rglob('*.jsonl'))
 for session_path in cc_sessions:
     stats['cc_total'] += 1
-    messages = extract_cc_user_messages(session_path)
+    messages = extract_cc_messages(session_path)
     if is_cc_definitely_not_learning(messages):
         stats['filtered_cc_too_short'] += 1
         continue
@@ -321,8 +337,8 @@ stats['gemini_reconstructed'] = len(gemini_convos)
 
 for conv_messages in gemini_convos:
     stats['gemini_total'] += 1
-    messages = [e['text'] for e in conv_messages]
-    title = gemini_conversation_title(messages)
+    raw_texts = [e['text'] for e in conv_messages]
+    title = gemini_conversation_title(raw_texts)
 
     if is_stock_research(title):
         stats['filtered_stock'] += 1
@@ -331,14 +347,15 @@ for conv_messages in gemini_convos:
         stats['filtered_image'] += 1
         continue
 
-    if any(is_stock_research(m) for m in messages):
+    if any(is_stock_research(m) for m in raw_texts):
         stats['filtered_stock'] += 1
         continue
 
-    if len(messages) <= 1:
+    if len(raw_texts) <= 1:
         stats['filtered_single_msg'] += 1
         continue
 
+    messages = [{'role': 'user', 'text': t} for t in raw_texts]
     idx['gemini'] += 1
     conv_id = make_id('gemini', title, idx['gemini'])
     write_conversation(conv_id, 'gemini', title, messages, OUTPUT_DIR)
@@ -360,13 +377,13 @@ for key, val in sorted(stats.items()):
     print(f"    {key}: {val}")
 print()
 
-total_tokens = 0
+total_chars = 0
 for f in output_files:
     with open(f) as fh:
         data = json.load(fh)
-    total_tokens += data['metadata']['total_chars'] / 4
+    total_chars += data['metadata']['total_chars']
 
-print(f"  Total user-only tokens: {total_tokens:,.0f} ({total_tokens/1e6:.2f} MTok)")
-print(f"  Avg tokens per conversation: {total_tokens/len(output_files):,.0f}")
-print(f"\n  Ready for extraction harness: ./extraction_harness.sh -i {OUTPUT_DIR} -o OUTPUT_DIR")
+est_tokens = total_chars / 4
+print(f"  Total chars: {total_chars:,} (~{est_tokens:,.0f} tokens, {est_tokens/1e6:.2f} MTok)")
+print(f"  Avg tokens per conversation: {est_tokens/len(output_files):,.0f}")
 

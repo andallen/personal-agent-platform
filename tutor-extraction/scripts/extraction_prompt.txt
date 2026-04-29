@@ -1,4 +1,4 @@
-You are analyzing a conversation between a human and an AI assistant. Your job is to extract insights about how this person learns — insights that would help a future AI tutor teach them more effectively.
+You are extracting tutoring signals from a conversation between a human and an AI. Your output will be fed into a synthesis step that builds a personalized tutor profile. Extract only what a future tutor needs — not a summary of what happened.
 
 Read the full conversation carefully before writing anything.
 
@@ -8,30 +8,31 @@ Many conversations are task completion (write this code, format this document, g
 
 A conversation HAS learning signal if the human is: building or revising a mental model, working through confusion, asking "why" or "how" questions that go beyond the immediate task, pushing back on explanations, or showing visible shifts in understanding. Even task-oriented conversations can contain learning signal — look for moments where the human is figuring something out, not just directing the AI.
 
-IF THERE IS LEARNING SIGNAL, write a thorough analysis addressing these questions where the conversation provides evidence (skip any that don't apply):
+IF THERE IS LEARNING SIGNAL, extract concrete findings. Each finding captures a key exchange paired with what it reveals and what a tutor should do. Use this format for each finding:
 
-About the learner:
-- How does the learner approach new material? Do they ask for definitions, work through examples, demand analogies, challenge claims, try to build something, or something else?
-- Where did the learner get stuck, confused, or frustrated? What specifically couldn't they reconcile — not just "they were confused" but the actual sticking point?
-- Where did something click? What was the learner's state before and after, and what seemed to cause the shift?
-- Did the learner reveal any incorrect mental models or assumptions? What were they, and how did they surface?
-- How did the learner's questions evolve over the conversation? Did they go deeper into one thread, branch out, circle back with new understanding, or jump between unrelated things?
-- Did the learner push back on or challenge the AI's explanations? What triggered it and was it productive?
+EXCHANGE: [the relevant portion of the conversation that shows the learning signal — include both AI and human turns when the signal depends on the interaction between them. Use exact quotes where possible, tight paraphrases marked with ~ when too long. For the most important findings, show the full back-and-forth that makes the signal legible on its own. For simpler findings, a single quote from either side is fine.]
+SIGNAL: [what this reveals about how the learner thinks, learns, or gets stuck — one or two sentences]
+TUTOR: [what a future tutor should do or avoid based on this — concrete and actionable]
 
-About what worked and didn't work in the AI's teaching:
-- What explanations, analogies, or approaches seemed to land well? How can you tell from the learner's response?
-- What did the AI try that didn't work — where the learner ignored it, got more confused, or pushed back?
-- Did the AI adjust its approach mid-conversation? Did the adjustment help?
+Extract as many findings as the conversation supports. A short conversation with one interesting moment might yield 1-3 findings. A deep 50-message exchange might yield 8-15. Categories to look for:
 
-About knowledge and gaps:
-- What does the learner clearly already know coming into this conversation?
-- What are they still building understanding of by the end?
+- Learning approach: how the learner engages with new material (asks for examples? challenges claims? builds analogies? tests against own experience?)
+- Sticking points: where the learner got stuck and what specifically they couldn't reconcile
+- Breakthroughs: what was the learner's state before and after, and what caused the shift
+- Incorrect models: assumptions the learner held that turned out wrong, and how they surfaced
+- Pushback patterns: when the learner challenged the AI and whether it was productive
+- What landed: explanations or framings that worked — evidenced by the learner's response
+- What failed: approaches the AI tried that the learner ignored, rejected, or got more confused by
+- Prior knowledge: what the learner clearly already knows (tells the tutor where NOT to start)
 
 RULES:
-- Ground every claim in specific evidence from the conversation. Include quotes as support.
-- Do not invent patterns that aren't clearly supported. If a question above doesn't apply, skip it entirely rather than speculating.
-- Write connected prose, not bullet points, numbered lists, or markdown headers. Just paragraphs.
-- Scale your analysis to the actual signal: a conversation with one interesting moment gets a short paragraph. A deep 50-message exchange deserves several paragraphs. Never pad.
+- Do NOT narrate or summarize the conversation. No "the conversation started with X, then moved to Y." No retelling what happened. Only extracted findings.
+- Every finding must include direct quotes or tight paraphrases as evidence. No unsupported claims.
+- Include AI context in the EXCHANGE when the signal depends on it. For breakthroughs, show what the AI said that worked. For failures, show what the AI tried that didn't land. For pushback, show what the learner was responding to. A reader should understand the finding without reading the original conversation.
+- Not every EXCHANGE needs to be a full back-and-forth. A single user quote is fine when it stands alone. Expand to multi-turn only when the interaction is what matters.
+- The TUTOR line must be specific enough to act on. "Be patient" is useless. "Use dynamic thought experiments to arrive at static states — this learner's model of force is tied to motion, so static equilibrium needs a dynamic narrative to feel real" is useful.
+- Do not invent patterns from thin evidence. If the conversation only supports 2 findings, write 2.
+- Do not repeat the same signal in different words. Each finding should be distinct.
 
-Begin your response with the line:
+Begin your response with:
 CONVERSATION ID: [the id provided with the conversation]
