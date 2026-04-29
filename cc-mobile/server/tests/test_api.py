@@ -1,9 +1,21 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from cc_mobile.api import build_app
 from cc_mobile.event_bus import EventBus
+
+
+def _build(manager, bus=None, options=None, projects_root: Path | None = None):
+    return build_app(
+        manager=manager,
+        bus=bus or EventBus(),
+        static_dir=None,
+        options=options,
+        projects_root=projects_root or Path("/nonexistent-cc-mobile-test-root"),
+    )
 
 
 class FakeMgr:
@@ -19,7 +31,7 @@ class FakeMgr:
 
 @pytest.mark.asyncio
 async def test_get_state_returns_current_state():
-    app = build_app(manager=FakeMgr(), bus=EventBus(), static_dir=None, options=None)
+    app = _build(FakeMgr())
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as client:
         r = await client.get("/api/state")
@@ -94,7 +106,7 @@ class FakeOptions:
 @pytest.mark.asyncio
 async def test_post_send_calls_manager():
     mgr = FullFakeMgr()
-    app = build_app(manager=mgr, bus=EventBus(), static_dir=None, options=FakeOptions())
+    app = _build(mgr, options=FakeOptions())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.post("/api/send", json={"text": "hi"})
     assert r.status_code == 200
@@ -104,7 +116,7 @@ async def test_post_send_calls_manager():
 @pytest.mark.asyncio
 async def test_post_interrupt():
     mgr = FullFakeMgr()
-    app = build_app(manager=mgr, bus=EventBus(), static_dir=None, options=FakeOptions())
+    app = _build(mgr, options=FakeOptions())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.post("/api/interrupt")
     assert r.status_code == 200
@@ -114,7 +126,7 @@ async def test_post_interrupt():
 @pytest.mark.asyncio
 async def test_post_mode_model_effort():
     mgr = FullFakeMgr()
-    app = build_app(manager=mgr, bus=EventBus(), static_dir=None, options=FakeOptions())
+    app = _build(mgr, options=FakeOptions())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         await c.post("/api/mode", json={"value": "plan"})
         await c.post("/api/model", json={"value": "claude-sonnet-4-6"})
@@ -127,7 +139,7 @@ async def test_post_mode_model_effort():
 @pytest.mark.asyncio
 async def test_post_clear_compact_resume_project_permission():
     mgr = FullFakeMgr()
-    app = build_app(manager=mgr, bus=EventBus(), static_dir=None, options=FakeOptions())
+    app = _build(mgr, options=FakeOptions())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         await c.post("/api/clear")
         await c.post("/api/compact")
@@ -144,7 +156,7 @@ async def test_post_clear_compact_resume_project_permission():
 @pytest.mark.asyncio
 async def test_get_lists_and_options():
     mgr = FullFakeMgr()
-    app = build_app(manager=mgr, bus=EventBus(), static_dir=None, options=FakeOptions())
+    app = _build(mgr, options=FakeOptions())
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         proj = (await c.get("/api/projects")).json()
         sess = (await c.get("/api/sessions", params={"cwd": "/x"})).json()
@@ -159,7 +171,7 @@ async def test_get_lists_and_options():
 def test_websocket_sends_initial_state_on_connect():
     mgr = FullFakeMgr()
     bus = EventBus()
-    app = build_app(manager=mgr, bus=bus, static_dir=None, options=FakeOptions())
+    app = _build(mgr, bus=bus, options=FakeOptions())
     client = TestClient(app)
     with client.websocket_connect("/ws") as ws:
         msg = ws.receive_json()

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
 from typing import Any
 
 USER_COMMANDS_DIR = Path.home() / ".claude" / "commands"
+USER_SKILLS_DIR = Path.home() / ".claude" / "skills"
+INSTALLED_PLUGINS_FILE = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 
 # Hand-maintained fallback. Update when CC adds/removes options. The runtime
 # layer can override these by parsing `claude --help` once that lookup is
@@ -71,8 +74,11 @@ class OptionsDiscovery:
         return list(FALLBACK_MODES)
 
     def get_slash_commands(self) -> list[dict[str, str]]:
-        cmds = list(BUILTIN_SLASH_COMMANDS)
-        cmds.extend(self._user_commands())
+        cmds: list[dict[str, str]] = [
+            {**c, "kind": "command"} for c in BUILTIN_SLASH_COMMANDS
+        ]
+        cmds.extend({**c, "kind": "command"} for c in self._user_commands())
+        cmds.extend(self._skills())
         # Dedupe by name, prefer earlier entries (built-ins win over user dupes).
         seen: set[str] = set()
         out: list[dict[str, str]] = []
@@ -91,6 +97,76 @@ class OptionsDiscovery:
             name = "/" + path.stem
             description = self._extract_description(path)
             out.append({"name": name, "description": description})
+        return out
+
+    def _skills(self) -> list[dict[str, str]]:
+        out: list[dict[str, str]] = []
+        # User-level skills: ~/.claude/skills/<name>/SKILL.md → /<name>
+        if USER_SKILLS_DIR.exists():
+            for skill_md in sorted(USER_SKILLS_DIR.glob("*/SKILL.md")):
+                meta = self._read_skill(skill_md)
+                if not meta:
+                    continue
+                name = meta.get("name") or skill_md.parent.name
+                out.append({
+                    "name": "/" + name,
+                    "description": meta.get("description", ""),
+                    "kind": "skill",
+                })
+        # Plugin skills: discover via installed_plugins.json → /<plugin>:<skill>
+        for plugin_name, install_path in self._installed_plugin_paths():
+            skills_dir = install_path / "skills"
+            if not skills_dir.exists():
+                continue
+            for skill_md in sorted(skills_dir.glob("*/SKILL.md")):
+                meta = self._read_skill(skill_md)
+                if not meta:
+                    continue
+                skill_name = meta.get("name") or skill_md.parent.name
+                out.append({
+                    "name": f"/{plugin_name}:{skill_name}",
+                    "description": meta.get("description", ""),
+                    "kind": "skill",
+                })
+        return out
+
+    @staticmethod
+    def _installed_plugin_paths() -> list[tuple[str, Path]]:
+        if not INSTALLED_PLUGINS_FILE.exists():
+            return []
+        try:
+            data = json.loads(INSTALLED_PLUGINS_FILE.read_text())
+        except (OSError, json.JSONDecodeError):
+            return []
+        out: list[tuple[str, Path]] = []
+        for key, entries in (data.get("plugins") or {}).items():
+            plugin_name = key.split("@", 1)[0]
+            for entry in entries or []:
+                install_path = entry.get("installPath")
+                if not install_path:
+                    continue
+                p = Path(install_path)
+                if p.exists():
+                    out.append((plugin_name, p))
+        return out
+
+    @staticmethod
+    def _read_skill(path: Path) -> dict[str, str] | None:
+        try:
+            text = path.read_text()
+        except OSError:
+            return None
+        m = re.search(r"^---\s*\n(.*?)\n---\s*\n", text, flags=re.DOTALL | re.MULTILINE)
+        if not m:
+            return None
+        out: dict[str, str] = {}
+        for line in m.group(1).splitlines():
+            kv = re.match(r"(name|description):\s*(.+)", line.strip())
+            if kv:
+                val = kv.group(2).strip()
+                if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+                    val = val[1:-1]
+                out[kv.group(1)] = val
         return out
 
     @staticmethod

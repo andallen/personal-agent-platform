@@ -105,3 +105,66 @@ class PlanApprovalDetector:
             target="approve plan",
             raw=pane_text[-2000:],
         )
+
+
+# CC's bottom status block (verified against live pane, CC v2.1.119+):
+#
+#   <session limits> | <weekly limits> | <token count> (X% context) | <ModelLabel> [(suffix)]
+#   ⏵⏵ bypass permissions on (shift+tab to cycle)        ← only present off-default
+#
+# Default mode shows no second line; bypass/accept_edits/plan show the chevron line.
+_STATUS_MODE_LINE = re.compile(
+    r"^\s*(?:⏵⏵|⏸)\s*(.+?)\s+on\s*(?:\([^)]*\))?\s*$",
+    re.MULTILINE,
+)
+
+
+def _extract_model_label(pane_text: str) -> str | None:
+    # Scan from bottom up; pick the last line that looks like the status line
+    # (contains both "tokens" and "context" segments and pipe separators).
+    for line in reversed(pane_text.splitlines()):
+        if "tokens" in line and "context" in line and "|" in line:
+            tail = line.rsplit("|", 1)[1].strip()
+            tail = re.sub(r"\s*\([^)]*\)\s*$", "", tail).strip()
+            return tail or None
+    return None
+
+
+def _extract_mode(pane_text: str) -> str | None:
+    matches = list(_STATUS_MODE_LINE.finditer(pane_text))
+    if not matches:
+        # No chevron line == default mode (only shown when status block is present)
+        return "default" if "tokens" in pane_text and "context" in pane_text else None
+    label = matches[-1].group(1).strip().lower()
+    if "bypass" in label:
+        return "bypass"
+    if "accept" in label:
+        return "accept_edits"
+    if "plan" in label:
+        return "plan"
+    return None
+
+
+class StatusLineDetector:
+    """Parse CC's bottom status block to read the live model + mode."""
+
+    def __init__(self, models: list[dict[str, str]]) -> None:
+        # Match longest labels first so "Opus 4.7" beats a hypothetical "Opus".
+        self._by_label = sorted(
+            ((m["label"], m["id"]) for m in models),
+            key=lambda x: -len(x[0]),
+        )
+
+    def detect(self, pane_text: str) -> dict[str, str | None] | None:
+        label = _extract_model_label(pane_text)
+        mode = _extract_mode(pane_text)
+        if label is None and mode is None:
+            return None
+        model_id: str | None = None
+        if label:
+            ll = label.lower()
+            for lab, mid in self._by_label:
+                if lab.lower() in ll:
+                    model_id = mid
+                    break
+        return {"model_id": model_id, "mode": mode}

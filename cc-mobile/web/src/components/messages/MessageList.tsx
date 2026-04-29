@@ -3,7 +3,7 @@ import type { ServerEvent, PermissionPrompt } from "../../types";
 import { AssistantMessage } from "./AssistantMessage";
 import { UserMessage } from "./UserMessage";
 import { ToolCallCard } from "./ToolCallCard";
-import { ClearDivider } from "./ClearDivider";
+import { ClearDivider, CompactDivider } from "./ClearDivider";
 import { PermissionPromptCard } from "./PermissionPromptCard";
 import "./messages.css";
 
@@ -14,8 +14,16 @@ export function MessageList(props: {
   permissions: Record<string, PermissionPrompt & { resolved?: Decision }>;
   onDecision: (id: string, d: Decision) => void;
 }) {
+  // /clear hides everything before the most recent clear_marker. The marker
+  // itself is kept so its divider still renders as a visual confirmation.
+  let lastClearIdx = -1;
+  props.events.forEach((e, idx) => {
+    if (e.kind === "chat_event" && e.event.kind === "clear_marker") lastClearIdx = idx;
+  });
+  const visible = lastClearIdx > 0 ? props.events.slice(lastClearIdx) : props.events;
+
   const toolResults: Record<string, string> = {};
-  for (const e of props.events) {
+  for (const e of visible) {
     if (e.kind === "chat_event" && e.event.kind === "tool_result") {
       toolResults[e.event.tool_use_id] = e.event.content;
     }
@@ -23,7 +31,7 @@ export function MessageList(props: {
 
   const items: ReactElement[] = [];
   let i = 0;
-  for (const e of props.events) {
+  for (const e of visible) {
     if (e.kind !== "chat_event") continue;
     const ev = e.event;
     const k = i++;
@@ -39,6 +47,7 @@ export function MessageList(props: {
         />,
       );
     else if (ev.kind === "clear_marker") items.push(<ClearDivider key={k} />);
+    else if (ev.kind === "compact_summary") items.push(<CompactDivider key={k} />);
   }
 
   for (const p of Object.values(props.permissions)) {

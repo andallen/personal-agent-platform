@@ -7,6 +7,7 @@ from cc_mobile.jsonl_tailer import parse_line, locate_active_jsonl
 from cc_mobile.types import (
     AssistantText,
     ClearMarker,
+    CompactSummary,
     ToolResult,
     ToolUse,
     UserMessage,
@@ -116,6 +117,20 @@ def test_parse_clear_marker_if_present():
     assert out2 == [ClearMarker()]
 
 
+def test_compact_summary_replaces_user_message():
+    """isCompactSummary entries get a CompactSummary marker, not a giant user bubble."""
+    obj = {
+        "type": "user",
+        "isCompactSummary": True,
+        "message": {
+            "role": "user",
+            "content": "This session is being continued ... [summary blob] ...",
+        },
+    }
+    out = parse_line(line(obj))
+    assert out == [CompactSummary()]
+
+
 def test_parse_unknown_type_returns_empty():
     obj = {"type": "permission-mode", "permissionMode": "default"}
     out = parse_line(line(obj))
@@ -204,6 +219,158 @@ async def test_tailer_switches_to_newer_file(tmp_path):
         _json.dumps({"type": "user", "message": {"role": "user", "content": "in-b"}})
         + "\n"
     )
+    # Rotation should emit a ClearMarker first, then the events from the new file.
+    ev1 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev1["event"]["kind"] == "clear_marker"
+    ev2 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev2["event"]["text"] == "in-b"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_does_not_emit_clear_on_initial_pickup(tmp_path):
+    """First-time discovery of an existing jsonl is not a /clear."""
+    f = tmp_path / "s.jsonl"
+    f.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "hi"}})
+        + "\n"
+    )
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
     ev = await asyncio.wait_for(sub.get(), timeout=2.0)
-    assert ev["event"]["text"] == "in-b"
+    assert ev["event"]["kind"] == "user_message"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_emits_clear_marker_on_rotation(tmp_path):
+    """When CC rotates to a fresh jsonl after /clear, emit a ClearMarker."""
+    a = tmp_path / "a.jsonl"
+    a.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "before"}})
+        + "\n"
+    )
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    # First the existing line should arrive.
+    ev1 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev1["event"]["text"] == "before"
+    # Rotate: a new jsonl appears with a newer mtime.
+    await asyncio.sleep(0.1)
+    b = tmp_path / "b.jsonl"
+    b.write_text("")
+    # Marker must arrive even before any content lands in the new file.
+    ev2 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev2["event"]["kind"] == "clear_marker"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_rotate_to_pins_path_and_emits_clear_then_history(tmp_path):
+    """Resume scenario: a.jsonl is the active session (max mtime). The user
+    asks to resume b.jsonl (older mtime). rotate_to(b) must immediately emit
+    ClearMarker followed by b's existing events, and the tailer must STAY on
+    b even though a still has the higher mtime."""
+    a = tmp_path / "a.jsonl"
+    a.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "in-a"}})
+        + "\n"
+    )
+    # Make b OLDER than a so auto-discovery would prefer a.
+    b = tmp_path / "b.jsonl"
+    b.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "in-b"}})
+        + "\n"
+    )
+    import os
+    old = a.stat().st_mtime
+    os.utime(b, (old - 60, old - 60))
+
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    # Initial pickup: a (newer mtime) wins.
+    ev1 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev1["event"]["text"] == "in-a"
+
+    # Now resume to b — explicit rotation.
+    tailer.rotate_to(b)
+    ev_clear = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_clear["event"]["kind"] == "clear_marker"
+    ev_b = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_b["event"]["text"] == "in-b"
+
+    # Append to b — must continue to be tailed (pin sticks even though a has higher mtime).
+    with b.open("a") as fp:
+        fp.write(
+            _json.dumps({"type": "user", "message": {"role": "user", "content": "in-b-2"}})
+            + "\n"
+        )
+    ev_b2 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_b2["event"]["text"] == "in-b-2"
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_rotate_to_does_not_re_emit_existing_a_events(tmp_path):
+    """After rotate_to(b), we don't want events from the previously-tailed a."""
+    a = tmp_path / "a.jsonl"
+    a.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user", "content": "in-a"}})
+        + "\n"
+    )
+    b = tmp_path / "b.jsonl"
+    b.write_text("")  # empty
+    import os
+    old = a.stat().st_mtime
+    os.utime(b, (old - 60, old - 60))
+
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    ev1 = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev1["event"]["text"] == "in-a"
+
+    tailer.rotate_to(b)
+    ev_clear = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_clear["event"]["kind"] == "clear_marker"
+
+    # No more events — b is empty.
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(sub.get(), timeout=0.4)
+    await tailer.stop()
+
+
+@pytest.mark.asyncio
+async def test_tailer_rotate_to_none_resumes_auto_discovery(tmp_path):
+    """Setting rotate_to(None) returns the tailer to auto-discovery mode."""
+    a = tmp_path / "a.jsonl"
+    a.write_text("")
+    b = tmp_path / "b.jsonl"
+    b.write_text("")
+    import os
+    now = a.stat().st_mtime
+    os.utime(b, (now - 60, now - 60))  # b older
+
+    bus = EventBus()
+    sub = bus.subscribe()
+    tailer = JSONLTailer(directory=tmp_path, bus=bus, poll_interval=0.05)
+    await tailer.start()
+    await asyncio.sleep(0.1)  # let it pick up a (no events since both empty)
+
+    # Pin to b
+    tailer.rotate_to(b)
+    ev_clear = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_clear["event"]["kind"] == "clear_marker"
+
+    # Unpin — should re-rotate to a (since a still has higher mtime).
+    tailer.rotate_to(None)
+    ev_clear_back = await asyncio.wait_for(sub.get(), timeout=2.0)
+    assert ev_clear_back["event"]["kind"] == "clear_marker"
     await tailer.stop()

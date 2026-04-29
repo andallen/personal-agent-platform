@@ -36,7 +36,14 @@ class ClearMarker:
     kind: Literal["clear_marker"] = "clear_marker"
 
 
-ChatEvent = UserMessage | AssistantText | ToolUse | ToolResult | ClearMarker
+@dataclass(slots=True)
+class CompactSummary:
+    kind: Literal["compact_summary"] = "compact_summary"
+
+
+ChatEvent = (
+    UserMessage | AssistantText | ToolUse | ToolResult | ClearMarker | CompactSummary
+)
 
 
 @dataclass(slots=True)

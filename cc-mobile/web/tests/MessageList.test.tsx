@@ -45,3 +45,17 @@ test("renders clear divider", () => {
   );
   expect(screen.getByText(/cleared/i)).toBeInTheDocument();
 });
+
+test("hides events before the most recent clear_marker", () => {
+  const events: ServerEvent[] = [
+    { kind: "chat_event", event: { kind: "user_message", text: "before-clear" } },
+    { kind: "chat_event", event: { kind: "assistant_text", text: "stale-reply" } },
+    { kind: "chat_event", event: { kind: "clear_marker" } },
+    { kind: "chat_event", event: { kind: "user_message", text: "after-clear" } },
+  ];
+  render(<MessageList events={events} permissions={{}} onDecision={() => {}} />);
+  expect(screen.queryByText("before-clear")).not.toBeInTheDocument();
+  expect(screen.queryByText("stale-reply")).not.toBeInTheDocument();
+  expect(screen.getByText("after-clear")).toBeInTheDocument();
+  expect(screen.getByText(/cleared/i)).toBeInTheDocument();
+});

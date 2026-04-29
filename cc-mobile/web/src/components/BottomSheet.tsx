@@ -5,6 +5,7 @@ export function BottomSheet(props: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  noScroll?: boolean;
 }) {
   return (
     <>
@@ -12,7 +13,10 @@ export function BottomSheet(props: {
         className={`backdrop ${css.backdrop} ${props.open ? "open " + css.open : ""}`}
         onClick={props.onClose}
       />
-      <div className={`sheet ${css.sheet} ${props.open ? "open " + css.open : ""}`} role="dialog">
+      <div
+        className={`sheet ${css.sheet} ${props.open ? "open " + css.open : ""} ${props.noScroll ? css.noScroll : ""}`}
+        role="dialog"
+      >
         <div className={css.handle} />
         {props.children}
       </div>
