@@ -70,7 +70,7 @@ async def test_boot_cold_starts_claude_in_default_dir(state_store, bus):
     assert "ensure_session" in actions
     assert "start_claude" in actions
     start_call = next(c for c in tmux.calls if c[0] == "start_claude")
-    assert start_call[1] == "/Users/andrewallen"
+    assert start_call[1] == str(Path.home())
     assert start_call[2] == "default"
 
 
@@ -196,14 +196,14 @@ async def test_switch_project_kills_then_starts_in_new_dir(state_store, bus):
     tmux = FakeTmux(alive=True)
     mgr = SessionManager(tmux=tmux, state=state_store, bus=bus, projects_root=Path("/tmp"))
     await mgr.boot()
-    await mgr.switch_project("/home/andrew/projects/foo")
+    await mgr.switch_project("/home/testuser/projects/foo")
     actions = [c[0] for c in tmux.calls]
     assert "kill_claude" in actions
     assert any(
-        c == ("start_claude", "/home/andrew/projects/foo", "default", None)
+        c == ("start_claude", "/home/testuser/projects/foo", "default", None)
         for c in tmux.calls
     )
-    assert state_store.get()["last_cwd"] == "/home/andrew/projects/foo"
+    assert state_store.get()["last_cwd"] == "/home/testuser/projects/foo"
 
 
 @pytest.mark.asyncio
@@ -236,11 +236,11 @@ async def test_resume_rotates_tailer_to_target_jsonl(state_store, bus, tmp_path)
         tmux=tmux, state=state_store, bus=bus, projects_root=tmp_path, tailer=tailer
     )
     await mgr.boot()
-    state_store.update(last_cwd="/Users/andrewallen")
+    state_store.update(last_cwd="/home/testuser")
     await mgr.resume("abcd-1234")
     assert len(tailer.rotate_calls) == 1
     target = tailer.rotate_calls[0]
-    assert target == tmp_path / "-Users-andrewallen" / "abcd-1234.jsonl"
+    assert target == tmp_path / "-home-testuser" / "abcd-1234.jsonl"
 
 
 @pytest.mark.asyncio
@@ -272,7 +272,7 @@ async def test_switch_project_clears_resume_pin(state_store, bus, tmp_path):
     )
     await mgr.boot()
     await mgr.resume("abcd-1234")
-    await mgr.switch_project("/home/andrew/projects/foo")
+    await mgr.switch_project("/home/testuser/projects/foo")
     # Pin should be cleared (None) so the tailer auto-discovers the new fresh jsonl.
     assert tailer.rotate_calls[-1] is None
     # And _current_resume_id should not survive a project switch.
@@ -344,7 +344,7 @@ async def test_switch_project_waits_for_claude_to_die(state_store, bus, tmp_path
     tmux = StubbornFakeTmux(polls_before_dead=2)
     mgr = SessionManager(tmux=tmux, state=state_store, bus=bus, projects_root=tmp_path)
     await mgr.boot()
-    await mgr.switch_project("/home/andrew/projects/foo")
+    await mgr.switch_project("/home/testuser/projects/foo")
     assert tmux._alive_calls_after_kill > tmux._polls_before_dead
 
 
@@ -496,14 +496,14 @@ async def test_decide_permission_allow_once_sends_one_keystroke(state_store, bus
 @pytest.mark.asyncio
 async def test_list_recent_projects_reads_from_projects_root(state_store, bus, tmp_path):
     proj_root = tmp_path / "projects"
-    (proj_root / "-Users-andrewallen").mkdir(parents=True)
-    (proj_root / "-home-andrew-projects-foo").mkdir(parents=True)
+    (proj_root / "-home-testuser").mkdir(parents=True)
+    (proj_root / "-home-testuser-projects-foo").mkdir(parents=True)
     tmux = FakeTmux(alive=True)
     mgr = SessionManager(tmux=tmux, state=state_store, bus=bus, projects_root=proj_root)
     projects = await mgr.list_recent_projects()
     cwds = {p["cwd"] for p in projects}
-    assert "/Users/andrewallen" in cwds
-    assert "/home/andrew/projects/foo" in cwds
+    assert "/home/testuser" in cwds
+    assert "/home/testuser/projects/foo" in cwds
 
 
 @pytest.mark.asyncio

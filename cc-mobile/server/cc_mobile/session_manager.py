@@ -408,7 +408,7 @@ class SessionManager:
 
     @staticmethod
     def _encode_project_dir(cwd: str) -> str:
-        # Claude Code uses leading-dash form: /Users/andrewallen → -Users-andrewallen
+        # Claude Code uses leading-dash form: /home/user → -home-user
         return cwd.replace("/", "-")
 
     @staticmethod

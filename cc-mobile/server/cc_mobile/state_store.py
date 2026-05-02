@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULTS: dict[str, Any] = {
-    "last_cwd": "/Users/andrewallen",
+    "last_cwd": str(Path.home()),
     "last_mode": "default",
     "last_model": None,
     "last_effort": None,

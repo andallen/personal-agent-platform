@@ -7,7 +7,7 @@ describe("TopBar", () => {
     const onOpen = vi.fn();
     render(
       <TopBar
-        project="andrewallen"
+        project="testuser"
         mode="default"
         model="opus 4.7"
         effort="high"

@@ -5,7 +5,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     const map: Record<string, any> = {
       "/api/state": {
-        cwd: "/Users/andrewallen", mode: "default",
+        cwd: "/home/testuser", mode: "default",
         model: "claude-opus-4-7", effort: "high", claude_alive: true,
       },
       "/api/options": {
@@ -30,5 +30,5 @@ beforeEach(() => {
 
 test("ChatView mounts and shows project pill text", async () => {
   render(<ChatView />);
-  expect(await screen.findByText(/andrewallen/)).toBeInTheDocument();
+  expect(await screen.findByText(/testuser/)).toBeInTheDocument();
 });

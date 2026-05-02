@@ -7,6 +7,8 @@ from httpx import ASGITransport, AsyncClient
 from cc_mobile.api import build_app
 from cc_mobile.event_bus import EventBus
 
+HOME = str(Path.home())
+
 
 def _build(manager, bus=None, options=None, projects_root: Path | None = None):
     return build_app(
@@ -21,7 +23,7 @@ def _build(manager, bus=None, options=None, projects_root: Path | None = None):
 class FakeMgr:
     async def current_state(self):
         return {
-            "cwd": "/Users/andrewallen",
+            "cwd": HOME,
             "mode": "default",
             "model": "claude-opus-4-7",
             "effort": "high",
@@ -37,7 +39,7 @@ async def test_get_state_returns_current_state():
         r = await client.get("/api/state")
     assert r.status_code == 200
     body = r.json()
-    assert body["cwd"] == "/Users/andrewallen"
+    assert body["cwd"] == HOME
     assert body["model"] == "claude-opus-4-7"
 
 
@@ -45,7 +47,7 @@ class FullFakeMgr:
     def __init__(self):
         self.calls: list[tuple] = []
         self._state = {
-            "cwd": "/Users/andrewallen",
+            "cwd": HOME,
             "mode": "default",
             "model": None,
             "effort": None,
@@ -90,7 +92,7 @@ class FullFakeMgr:
         self.calls.append(("decide_permission", prompt_id, decision))
 
     async def list_recent_projects(self):
-        return [{"cwd": "/Users/andrewallen", "name": "andrewallen", "mtime": 0.0}]
+        return [{"cwd": HOME, "name": Path.home().name, "mtime": 0.0}]
 
     async def list_recent_sessions(self, cwd):
         return [{"id": "abc", "mtime": 0.0, "size": 0}]
@@ -162,7 +164,7 @@ async def test_get_lists_and_options():
         sess = (await c.get("/api/sessions", params={"cwd": "/x"})).json()
         opts = (await c.get("/api/options")).json()
         slash = (await c.get("/api/slash-commands")).json()
-    assert proj[0]["cwd"] == "/Users/andrewallen"
+    assert proj[0]["cwd"] == HOME
     assert sess[0]["id"] == "abc"
     assert "models" in opts and "efforts" in opts and "modes" in opts
     assert slash[0]["name"] == "/clear"
@@ -176,4 +178,4 @@ def test_websocket_sends_initial_state_on_connect():
     with client.websocket_connect("/ws") as ws:
         msg = ws.receive_json()
     assert msg["kind"] == "state"
-    assert msg["state"]["cwd"] == "/Users/andrewallen"
+    assert msg["state"]["cwd"] == HOME

@@ -1,1 +1,15 @@
 PROGRESS.md
+cc-mobile/PROGRESS.md
+
+# Internal planning/research docs (kept locally, not public)
+docs/
+cc-mobile/docs/superpowers/
+
+# Certs
+*.pem
+*.key
+*.crt
+
+# Environment
+.env
+.env.*
